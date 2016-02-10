@@ -37,24 +37,28 @@ class L2LearningSwitchHandler():
     dst = eth.dst
     src = eth.src    
 
-    # A new packet carries information on the mac address and port, which we turn into a 
-    # GOTO-table 1 rule in table 0
-    # TODO: packets going to/from a router need to hop over to table 2, so install a Goto table 2 for that instead. 
-    match_mac = parser.OFPMatch( vlan_vid = self.nib.vlan(), eth_src = src )
-    inst = [ parser.OFPInstructionGotoTable(1) ]
-    mod = parser.OFPFlowMod(datapath=dp, priority=65535,
-      cookie=0, command=ofproto.OFPFC_ADD, idle_timeout=0, hard_timeout=0,
-      flags=ofproto.OFPFF_SEND_FLOW_REM, match=match_mac, instructions=inst, table_id=0)
-    dp.send_msg(mod)
+    # Don't re-add the mac if it's already been learned.  TODO: Actually check the mac against the entry
+    # It might be that the rule aged out and we need to re-learn it
+    if not self.nib.learned(src):
 
-    # And a send-to-port instruction for a destination match in table 1
-    # TODO: packets going to/from a router need to hop over to table 2, so install a Goto table 2 for that instead. 
-    match_mac = parser.OFPMatch( vlan_vid = self.nib.vlan(), eth_dst = src )
-    actions = [ parser.OFPActionOutput(in_port) ]
-    OpenflowUtils.add_flow(dp, priority=0, match=match_mac, actions=actions, table_id=1)
+      # A new packet carries information on the mac address and port, which we turn into a 
+      # GOTO-table 1 rule in table 0
+      # TODO: packets going to/from a router need to hop over to table 2, so install a Goto table 2 for that instead. 
+      match_mac = parser.OFPMatch( vlan_vid = self.nib.vlan_for_switch(switch), eth_src = src )
+      inst = [ parser.OFPInstructionGotoTable(1) ]
+      mod = parser.OFPFlowMod(datapath=dp, priority=65535,
+        cookie=0, command=ofproto.OFPFC_ADD, idle_timeout=0, hard_timeout=0,
+        flags=ofproto.OFPFF_SEND_FLOW_REM, match=match_mac, instructions=inst, table_id=0)
+      dp.send_msg(mod)
 
-    # Learn it for posterity 
-    self.nib.learn(switch, self.nib.ENDHOST_PORT, in_port, src)
+      # And a send-to-port instruction for a destination match in table 1
+      # TODO: packets going to/from a router need to hop over to table 2, so install a Goto table 2 for that instead. 
+      match_mac = parser.OFPMatch( vlan_vid = self.nib.vlan_for_switch(switch), eth_dst = src )
+      actions = [ parser.OFPActionOutput(in_port) ]
+      OpenflowUtils.add_flow(dp, priority=0, match=match_mac, actions=actions, table_id=1)
+
+      # Learn it for posterity 
+      self.nib.learn(switch, self.nib.ENDHOST_PORT, in_port, src)
 
     # Now we have to deal with the Mac destination.  If we know it already, send the packet out that port.
     # Otherwise flood it.  TODO: We should probably check to make sure the switch is right 

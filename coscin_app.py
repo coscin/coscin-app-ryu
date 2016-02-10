@@ -11,15 +11,7 @@ from ryu import utils
 from openflow_utils import OpenflowUtils
 from network_information_base import NetworkInformationBase
 from l2_learning_switch_handler import L2LearningSwitchHandler
-
-# Stolen from later version of RYU
-# def ipv4_to_int(ip):
-#   """
-#   Converts human readable IPv4 string to int type representation.
-#   :param str ip: IPv4 address string w.x.y.z
-#   :returns: unsigned int of form w << 24 | x << 16 | y << 8 | z
-#   """
-#   return struct.unpack("!I", addrconv.ipv4.text_to_bin(ip))[0]
+from cross_campus_handler import CrossCampusHandler
 
 class CoscinApp(app_manager.RyuApp):
   OFP_VERSIONS = [ofproto_v1_3.OFP_VERSION]
@@ -32,6 +24,7 @@ class CoscinApp(app_manager.RyuApp):
     nib.load_config("coscin_gates_testbed.json")
 
     self.l2_learning_switch_handler = L2LearningSwitchHandler(nib)
+    self.cross_campus_handler = CrossCampusHandler(nib, self.logger)
 
     self.logger.info("CoSciN app started")
 
@@ -204,12 +197,13 @@ class CoscinApp(app_manager.RyuApp):
 
     dp = ev.msg.datapath
     self.nib.save_switch(dp)
-    self.logger.info("Connected to Frenetic - Switch: "+self.nib.switch_description())
+    self.logger.info("Connected to Switch: "+self.nib.switch_description())
 
     OpenflowUtils.delete_all_rules(dp)
     OpenflowUtils.send_table_miss_config(dp)
 
     self.l2_learning_switch_handler.install_fixed_rules()
+    self.cross_campus_handler.install_fixed_rules()
 
   @set_ev_cls(ofp_event.EventOFPPacketIn, MAIN_DISPATCHER)
   def _packet_in_handler(self, ev):
@@ -222,6 +216,7 @@ class CoscinApp(app_manager.RyuApp):
     # else:
     #   self.logger.error("Received packet with unrecognized cookie value")
     self.l2_learning_switch_handler.packet_in(msg)
+    self.cross_campus_handler.packet_in(msg)
 
   @set_ev_cls(ofp_event.EventOFPErrorMsg, [CONFIG_DISPATCHER, MAIN_DISPATCHER])
   def error_msg_handler(self, ev):

@@ -6,6 +6,7 @@
 # corresponding switch, controller, and networks on each side.
 
 import json, logging
+from net_utils import NetUtils
 
 class NetworkInformationBase():
 
@@ -22,6 +23,8 @@ class NetworkInformationBase():
   # hosts = { mac1: (sw1, port1), mac2: (sw2, port2), ... }
   hosts = {}
 
+  # index of alternate_path being used now
+  preferred_path = 0
 
   def dpid_to_switch(self, dpid):
     for sw in ["ithaca", "nyc"]:
@@ -40,6 +43,9 @@ class NetworkInformationBase():
     self.coscin_config = json.load(f)
     f.close()
 
+  def actual_net_for(self, switch):
+    return self.coscin_config[switch]["network"]
+
   def save_switch(self, dp):
     self.switches[self.dpid_to_switch(dp.id)] = dp
 
@@ -51,7 +57,7 @@ class NetworkInformationBase():
     return self.switches.keys()[0] 
 
   # TODO: Make this configurable
-  def vlan(self):
+  def vlan_for_switch(self, switch):
     return 1
 
   # Update NIB tables and return True if table changes occurred.  Return False otherwise.
@@ -77,6 +83,9 @@ class NetworkInformationBase():
       #return False
     return True
 
+  def learned(self, mac):
+    return mac in self.hosts
+
   def switch_for_mac(self, src_mac):
     return self.hosts[src_mac][0]
 
@@ -94,3 +103,35 @@ class NetworkInformationBase():
 
   def switch_for_dp(self, dp):
     return self.dpid_to_switch(dp.id)
+
+  def router_mac_for_switch(self, switch):
+    # TODO: Pass this back from the NIB after learning it.  In the case of the testbed Cisco router, this is 
+    # the same on either side.
+    return "00:0a:f3:50:96:80"
+
+  def router_port_for_switch(self, switch):
+    # TODO: Pass back from NIB after learning it.
+    return 1
+
+  def alternate_paths(self):
+    return self.coscin_config["alternate_paths"]
+
+  def preferred_net(self, switch):
+    return self.alternate_paths()[self.get_preferred_path()][switch]
+
+  def opposite_switch(self, switch):
+    return "nyc" if (switch=="ithaca") else "ithaca"
+
+  def ip_in_coscin_network(self, dst_ip):
+    if NetUtils.ip_in_network(dst_ip, self.actual_net_for("ithaca")):
+      return True
+    if NetUtils.ip_in_network(dst_ip, self.actual_net_for("nyc")):
+      return True    
+    for ap in self.alternate_paths():
+      if NetUtils.ip_in_network(dst_ip, ap["ithaca"]) or NetUtils.ip_in_network(dst_ip, ap["nyc"]):
+        return True
+    return False    
+
+  def get_preferred_path(self):
+    return self.preferred_path
+
