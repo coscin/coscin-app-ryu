@@ -13,6 +13,9 @@ class NetworkInformationBase():
   # switches are of the form { "ithaca": RYU dp structure, "nyc": RYU dp structure}
   switches = {}
 
+  # Router ports are tallied on the approriate side
+  router_port = { "ithaca": 0, "nyc": 0 }
+
   # Ports are segregated into ROUTER ports and ENDHOST ports
   ROUTER_PORT = 1
   ENDHOST_PORT = 2
@@ -20,7 +23,7 @@ class NetworkInformationBase():
   # This will be seeded with network data in .json file
   coscin_config = {} 
 
-  # hosts = { mac1: (sw1, port1), mac2: (sw2, port2), ... }
+  # hosts = { mac1: (sw1, port1, ip1), mac2: (sw2, port2, ip2), ... }
   hosts = {}
 
   # index of alternate_path being used now
@@ -61,26 +64,25 @@ class NetworkInformationBase():
     return 1
 
   # Update NIB tables and return True if table changes occurred.  Return False otherwise.
-  def learn(self, switch, port_type, port, mac, src_ip= "None"):
+  def learn(self, switch, port_type, port, mac, src_ip):
     #if self.learned(switch, port):
     #  return False
 
     logging.info("Learning: "+mac+"/"+src_ip+" attached to ( "+switch+", "+str(port)+" )")
-    self.hosts[mac] = (switch, port)
-    #self.arp_cache[src_ip] = (switch, port, mac)
-    #self.unlearned_ports[switch].remove(port)
-    #if port_type == self.ENDHOST_PORT:
-      #host_portion = NetUtils.host_of_ip(src_ip, self.coscin_config[switch]["network"])
-      #self.endhosts[switch].append( (host_portion, port, mac, src_ip) )
-      # We also add entries for this host on all its imaginary paths
-      #for ap in self.coscin_config["alternate_paths"]:
-        #virtual_ip = NetUtils.ip_for_network(ap[switch], host_portion)
-        #self.arp_cache[virtual_ip] = (switch, port, mac)
-    #elif port_type == self.ROUTER_PORT:
-      #self.router_port[switch] = port
-    #else:
-      #logging.error("Unknown port type: "+str(port_type))
-      #return False
+    self.hosts[mac] = (switch, port, src_ip)
+    if port_type == self.ENDHOST_PORT:
+      # host_portion = NetUtils.host_of_ip(src_ip, self.coscin_config[switch]["network"])
+      # self.endhosts[switch].append( (host_portion, port, mac, src_ip) )
+      # # We also add entries for this host on all its imaginary paths
+      # for ap in self.coscin_config["alternate_paths"]:
+      #   virtual_ip = NetUtils.ip_for_network(ap[switch], host_portion)
+      #   self.arp_cache[virtual_ip] = (switch, port, mac)
+      pass
+    elif port_type == self.ROUTER_PORT:
+      self.router_port[switch] = port
+    else:
+      logging.error("Unknown port type: "+str(port_type))
+      return False
     return True
 
   def learned(self, mac):
@@ -105,13 +107,15 @@ class NetworkInformationBase():
     return self.dpid_to_switch(dp.id)
 
   def router_mac_for_switch(self, switch):
-    # TODO: Pass this back from the NIB after learning it.  In the case of the testbed Cisco router, this is 
-    # the same on either side.
-    return "00:0a:f3:50:96:80"
+    rp = self.router_port[switch]
+    for m in self.hosts:
+      (sw, p, _) = self.hosts[m]
+      if sw == switch and p == rp:
+        return m
+    return "None"
 
   def router_port_for_switch(self, switch):
-    # TODO: Pass back from NIB after learning it.
-    return 1
+    return self.router_port[switch]
 
   def alternate_paths(self):
     return self.coscin_config["alternate_paths"]
@@ -150,3 +154,17 @@ class NetworkInformationBase():
     else:
       host = NetUtils.host_of_ip(dst_ip, imaginary_net)
       return NetUtils.ip_for_network(self.actual_net_for(found_side), host)
+
+  def learned_ip(self, src_ip):
+    for m in self.hosts:
+      (_, _, ip) = self.hosts[m]
+      if ip == src_ip:
+        return True
+    return False
+
+  def port_for_ip(self, src_ip):
+    for m in self.hosts:
+      (_, p, ip) = self.hosts[m]
+      if ip == src_ip:
+        return p
+    return None

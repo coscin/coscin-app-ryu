@@ -3,47 +3,30 @@ from openflow_utils import OpenflowUtils
 from net_utils import NetUtils
 
 class CrossCampusHandler():
+  INCOMING_FLOW_RULE = 2000
+  OUTGOING_FLOW_RULE = 2001
 
   def __init__(self, nib, logger):
     self.nib = nib
     self.logger = logger
 
   def install_fixed_rules(self):
-    # TODO: We'll learn the router interfaces by learning them in a later version.  For now, just hard code.
     for switch in self.nib.switches_present():
       dp = self.nib.dp_for_switch(switch)
       ofproto = dp.ofproto
       parser = dp.ofproto_parser
 
-      router_mac = self.nib.router_mac_for_switch(switch)
-      # Packets coming in from the router go to Table 2
-      match_mac = parser.OFPMatch( vlan_vid = self.nib.vlan_for_switch(switch), eth_src = router_mac )
-      inst = [ parser.OFPInstructionGotoTable(2) ]
-      mod = parser.OFPFlowMod(datapath=dp, priority=0,
-        cookie=0, command=ofproto.OFPFC_ADD, idle_timeout=0, hard_timeout=0,
-        flags=ofproto.OFPFF_SEND_FLOW_REM, match=match_mac, instructions=inst, table_id=0)
-      dp.send_msg(mod)
+      # Incoming Packet Capture (e.g Coscin Ith->NYC on the Ith side), Cookie INCOMING_FLOW_RULE
+      target_ip_net = self.nib.actual_net_for(switch)
+      router_ip = NetUtils.ip_for_network(target_ip_net, 1)  # The IP of the router interface will always be a .1
 
-      # Packets going out to the router go to Table 2 as well
-      match_mac = parser.OFPMatch( vlan_vid = self.nib.vlan_for_switch(switch), eth_dst = router_mac )
-      mod = parser.OFPFlowMod(datapath=dp, priority=0,
-        cookie=0, command=ofproto.OFPFC_ADD, idle_timeout=0, hard_timeout=0,
-        flags=ofproto.OFPFF_SEND_FLOW_REM, match=match_mac, instructions=inst, table_id=1)
-      dp.send_msg(mod)
-
-      # This prevents the router port from being learned on its own, and overwriting the rule above.
-      self.nib.learn(switch, self.nib.ROUTER_PORT, 1, router_mac)
-
-      # These actually ARE NOT hard-coding, and will be left in.  They're catch-alls for new flows.
-
-      # Ingress Packet Capture, Cookie 2000
-      match = parser.OFPMatch(eth_dst = router_mac ,eth_type=0x0800 )
+      match = parser.OFPMatch(ipv4_dst = router_ip ,eth_type=0x0800 )
       actions = [ parser.OFPActionOutput(ofproto.OFPP_CONTROLLER) ]
-      OpenflowUtils.add_flow(dp, priority=65535, match=match, actions=actions, table_id=3, cookie=2000)    
+      OpenflowUtils.add_flow(dp, priority=65535, match=match, actions=actions, table_id=3, cookie=self.INCOMING_FLOW_RULE)    
 
-      # Egress Packet Capture, Cookie 2001
-      match = parser.OFPMatch(eth_src = router_mac ,eth_type=0x0800 )
-      OpenflowUtils.add_flow(dp, priority=65534, match=match, actions=actions, table_id=3, cookie=2001)          
+      # Outgoing Packet Capture (e.g. Coscin Ith->NYC on the NYC side), Cookie OUTGOING_FLOW_RULE
+      match = parser.OFPMatch(ipv4_src = router_ip ,eth_type=0x0800 )
+      OpenflowUtils.add_flow(dp, priority=65534, match=match, actions=actions, table_id=3, cookie=self.OUTGOING_FLOW_RULE)          
 
   def add_outgoing_dynamic_flow(self, msg):
     dp = msg.datapath
@@ -172,12 +155,10 @@ class CrossCampusHandler():
     new_dest_ip = NetUtils.ip_for_network(real_net, dst_host)
 
     # If it's not in the ARP cache, it already has an ARP request on the way so ignore it for now.
-    # TODO: We don't have a learning table for IP's yet.  But we will.  
-    #if not self.nib.learned_ip(new_dest_ip):
-    #  return
+    if not self.nib.learned_ip(new_dest_ip):
+      return
 
-    #direct_net_port = self.nib.port_for_ip(new_dest_ip)
-    direct_net_port = 2
+    direct_net_port = self.nib.port_for_ip(new_dest_ip)
     new_src_ip = self.nib.translate_alternate_net(src_ip)    
 
     tcp_pkt = pkt.get_protocols(tcp.tcp)[0]
@@ -211,8 +192,8 @@ class CrossCampusHandler():
   def packet_in(self, msg):
     # We're only interested in packets bound or coming from the router
     cookie = msg.cookie
-    if cookie == 2000:
+    if cookie == self.INCOMING_FLOW_RULE:
       self.add_outgoing_dynamic_flow(msg)
-    elif cookie == 2001:
+    elif cookie == self.OUTGOING_FLOW_RULE:
       self.add_incoming_dynamic_flow(msg)
 
