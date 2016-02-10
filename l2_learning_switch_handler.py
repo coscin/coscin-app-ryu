@@ -1,6 +1,7 @@
 from ryu.lib.packet import packet, ethernet, ether_types, ipv4, arp, tcp
 from openflow_utils import OpenflowUtils
 from net_utils import NetUtils
+from cross_campus_handler import CrossCampusHandler
 
 class L2LearningSwitchHandler():
   LEARN_NEW_MACS_RULE = 1000
@@ -69,6 +70,19 @@ class L2LearningSwitchHandler():
         OpenflowUtils.add_goto_table(dp, priority=0, match=match_mac_dst, goto_table_id=2, table_id=1)
 
         self.nib.learn(switch, self.nib.ROUTER_PORT, in_port, src, src_ip)
+
+        # We also install path learning rules for table 3.  Since this is the responsibility of
+        # cross_campus_handler, it would be better if we installed them there, but I don't know quite
+        # how to do it.
+
+        # Incoming Packet Capture (e.g Coscin Ith->NYC on the Ith side), Cookie INCOMING_FLOW_RULE
+        match = parser.OFPMatch( eth_dst = src, eth_type=0x0800 )
+        actions = [ parser.OFPActionOutput(ofproto.OFPP_CONTROLLER) ]
+        OpenflowUtils.add_flow(dp, priority=65535, match=match, actions=actions, table_id=3, cookie=CrossCampusHandler.INCOMING_FLOW_RULE)    
+
+        # Outgoing Packet Capture (e.g. Coscin Ith->NYC on the NYC side), Cookie OUTGOING_FLOW_RULE
+        match = parser.OFPMatch( eth_src = src, eth_type=0x0800 )
+        OpenflowUtils.add_flow(dp, priority=65534, match=match, actions=actions, table_id=3, cookie=CrossCampusHandler.OUTGOING_FLOW_RULE)          
 
       else:
         # A new packet carries information on the mac address and port, which we turn into a 

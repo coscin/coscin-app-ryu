@@ -11,22 +11,9 @@ class CrossCampusHandler():
     self.logger = logger
 
   def install_fixed_rules(self):
-    for switch in self.nib.switches_present():
-      dp = self.nib.dp_for_switch(switch)
-      ofproto = dp.ofproto
-      parser = dp.ofproto_parser
-
-      # Incoming Packet Capture (e.g Coscin Ith->NYC on the Ith side), Cookie INCOMING_FLOW_RULE
-      target_ip_net = self.nib.actual_net_for(switch)
-      router_ip = NetUtils.ip_for_network(target_ip_net, 1)  # The IP of the router interface will always be a .1
-
-      match = parser.OFPMatch(ipv4_dst = router_ip ,eth_type=0x0800 )
-      actions = [ parser.OFPActionOutput(ofproto.OFPP_CONTROLLER) ]
-      OpenflowUtils.add_flow(dp, priority=65535, match=match, actions=actions, table_id=3, cookie=self.INCOMING_FLOW_RULE)    
-
-      # Outgoing Packet Capture (e.g. Coscin Ith->NYC on the NYC side), Cookie OUTGOING_FLOW_RULE
-      match = parser.OFPMatch(ipv4_src = router_ip ,eth_type=0x0800 )
-      OpenflowUtils.add_flow(dp, priority=65534, match=match, actions=actions, table_id=3, cookie=self.OUTGOING_FLOW_RULE)          
+    # The capture rules can only be installed once we learn the router port and mac, so they get installed
+    # in l2_learning_switch_handler.  
+    pass
 
   def add_outgoing_dynamic_flow(self, msg):
     dp = msg.datapath
