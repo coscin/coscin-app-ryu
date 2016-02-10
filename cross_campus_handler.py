@@ -149,6 +149,17 @@ class CrossCampusHandler():
     dst_ip = ip.dst
 
     # Convert dst_ip to its real form.  First find out what the egress switch actually is:
+    self.logger.info("Packet for "+str(src_ip) +" -> "+ str(dst_ip))
+
+    # I'm getting these issues if the rewrites are not properly happening.
+    if NetUtils.ip_in_network(dst_ip, self.nib.actual_net_for(switch)):
+      self.logger.info("This shouldn't be happening.  Packet should be coming from virtual net.  Outputting packet.")
+      out = parser.OFPPacketOut(datapath=dp, buffer_id=msg.buffer_id,
+        in_port=1, actions=[ parser.OFPActionOutput(2) ], data=msg.data)
+      dp.send_msg(out)
+      return
+
+
     for ap in self.nib.alternate_paths():
       if NetUtils.ip_in_network(dst_ip, ap["ithaca"]): 
         switch = "ithaca" 
@@ -162,10 +173,11 @@ class CrossCampusHandler():
 
     # If it's not in the ARP cache, it already has an ARP request on the way so ignore it for now.
     # TODO: We don't have a learning table for IP's yet.  But we will.  
-    if not self.nib.learned_ip(new_dest_ip):
-      return
+    #if not self.nib.learned_ip(new_dest_ip):
+    #  return
 
-    direct_net_port = self.nib.port_for_ip(new_dest_ip)
+    #direct_net_port = self.nib.port_for_ip(new_dest_ip)
+    direct_net_port = 2
     new_src_ip = self.nib.translate_alternate_net(src_ip)    
 
     tcp_pkt = pkt.get_protocols(tcp.tcp)[0]
@@ -182,7 +194,7 @@ class CrossCampusHandler():
     actions = [
       parser.OFPActionSetField(ipv4_src=new_src_ip),
       parser.OFPActionSetField(ipv4_dst=new_dest_ip),
-      parser.OFPActionOutput(host_port)
+      parser.OFPActionOutput(direct_net_port)
     ]
     # The flow will naturally age out after 10 minutes of idleness.  That keeps the table clean.
     OpenflowUtils.add_flow(dp, priority=0, match=match, actions=actions, table_id=2, idle_timeout=600)

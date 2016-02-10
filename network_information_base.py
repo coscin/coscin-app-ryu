@@ -135,3 +135,18 @@ class NetworkInformationBase():
   def get_preferred_path(self):
     return self.preferred_path
 
+  def translate_alternate_net(self, dst_ip):
+    # First find out which side (ithaca or nyc) it's on
+    found_side = None
+    for ap in self.alternate_paths():
+      for side in ["ithaca", "nyc"]:
+        if NetUtils.ip_in_network(dst_ip, ap[side]):
+          found_side = side
+          imaginary_net = ap[side]
+
+    if side == None:
+      logging.error("Ooops.  Got an ARP request for a net we don't know about.  Oh well.")
+      return False
+    else:
+      host = NetUtils.host_of_ip(dst_ip, imaginary_net)
+      return NetUtils.ip_for_network(self.actual_net_for(found_side), host)
