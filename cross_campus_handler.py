@@ -76,6 +76,8 @@ class CrossCampusHandler():
         ,tcp_src = tcp_pkt.src_port
         ,tcp_dst = tcp_pkt.dst_port
       )
+      src_port = tcp_pkt.src_port
+      dst_port = tcp_pkt.dst_port
     elif ip.proto == 0x11:
       udp_pkt = pkt.get_protocols(udp.udp)[0]
       match = parser.OFPMatch(
@@ -148,25 +150,32 @@ class CrossCampusHandler():
     direct_net_port = self.nib.port_for_ip(new_dest_ip)
     new_src_ip = self.nib.translate_alternate_net(src_ip)    
 
-    match = parser.OFPMatch(
-      ipv4_src=ip.src
-      ,ipv4_dst=ip.dst
-      ,eth_type=0x0800
-      ,ip_proto=ip.proto  
-      ,vlan_vid=self.nib.vlan_for_switch(switch)
-    )
     if ip.proto == 0x6:
       tcp_pkt = pkt.get_protocols(tcp.tcp)[0]
+      match = parser.OFPMatch(
+        ipv4_src=ip.src
+        ,ipv4_dst=ip.dst
+        ,eth_type=0x0800
+        ,ip_proto=ip.proto  
+        ,vlan_vid=self.nib.vlan_for_switch(switch)
+        ,tcp_src = tcp_pkt.src_port
+        ,tcp_dst = tcp_pkt.dst_port
+      )
       src_port = tcp_pkt.src_port
       dst_port = tcp_pkt.dst_port
-      match.set_tcp_src( src_port )
-      match.set_tcp_dst( dst_port )
     elif ip.proto == 0x11:
       udp_pkt = pkt.get_protocols(udp.udp)[0]
+      match = parser.OFPMatch(
+        ipv4_src=ip.src
+        ,ipv4_dst=ip.dst
+        ,eth_type=0x0800
+        ,ip_proto=ip.proto  
+        ,vlan_vid=self.nib.vlan_for_switch(switch)
+        ,udp_src = udp_pkt.src_port
+        ,udp_dst = udp_pkt.dst_port
+      )
       src_port = udp_pkt.src_port
       dst_port = udp_pkt.dst_port
-      match.set_udp_src( src_port )
-      match.set_udp_dst( dst_port )
 
     actions = [
       parser.OFPActionSetField(ipv4_src=new_src_ip),
