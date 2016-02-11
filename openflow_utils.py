@@ -82,3 +82,22 @@ class OpenflowUtils():
       data = p.data
     )
     dp.send_msg(out)
+
+  @staticmethod
+  def send_arp_reply(dp, port, src_mac, src_ip, target_mac, target_ip):
+    parser = dp.ofproto_parser
+    ofproto = dp.ofproto
+
+    e = ethernet.ethernet(dst=src_mac, src=target_mac, ethertype=ether.ETH_TYPE_ARP)
+    # Note for the reply we flip the src and target, as per ARP rules
+    pkt = arp.arp_ip(arp.ARP_REPLY, target_mac, target_ip, src_mac, src_ip)
+    p = packet.Packet()
+    p.add_protocol(e)
+    p.add_protocol(pkt)
+    p.serialize()
+    logging.info("Sending Arp Reply for "+src_ip)          
+
+    out = parser.OFPPacketOut(datapath=dp, buffer_id=ofproto.OFP_NO_BUFFER, 
+      in_port=port, actions=[ parser.OFPActionOutput(port) ], data=p.data)
+    dp.send_msg(out)
+

@@ -1,4 +1,4 @@
-from ryu.lib.packet import packet, ethernet, ether_types, ipv4, tcp
+from ryu.lib.packet import packet, ethernet, ether_types, ipv4, tcp, udp
 from openflow_utils import OpenflowUtils
 from net_utils import NetUtils
 
@@ -24,18 +24,13 @@ class CrossCampusHandler():
 
     pkt = packet.Packet(msg.data)
     eth = pkt.get_protocols(ethernet.ethernet)[0]
-
-    # This shouldn't happen because nics don't send non-IP packets to a router
-    if eth.ethertype != 0x800:
-      self.logger.error("Non IP packet sent to a router.  Ignored.")
-      return
-
     ip = pkt.get_protocols(ipv4.ipv4)[0]
 
-    # TODO: Handle UDP as well
-    if ip.proto != 0x6:
-      self.logger.error("Non TCP packet ignored for now")
-      return
+    # Only TCP and UDP packets can be handled by installing rules in custom pipleine hash table.  Handle
+    # all other IP protocols (like ICMP) by acting like an L2 switch.  The traffic on these protocols 
+    # should be light enough to handle all by controller.  
+    if ip.proto != 0x6 and ip.proto != 0x11:
+      return [ parser.OFPActionOutput(self.nib.router_port_for_switch(switch)) ]
 
     src_ip = ip.src
     dst_ip = ip.dst
@@ -70,17 +65,22 @@ class CrossCampusHandler():
     # No matter what, we always send the packet to the router
     actions.append(parser.OFPActionOutput(self.nib.router_port_for_switch(switch)))
 
-    tcp_pkt = pkt.get_protocols(tcp.tcp)[0]
-
     match = parser.OFPMatch(
       ipv4_src=ip.src
       ,ipv4_dst=ip.dst
       ,eth_type=0x0800
       ,ip_proto=ip.proto  
-      ,tcp_src=tcp_pkt.src_port
-      ,tcp_dst=tcp_pkt.dst_port
       ,vlan_vid=self.nib.vlan_for_switch(switch)
     )
+    if ip.proto == 0x6:
+      tcp_pkt = pkt.get_protocols(tcp.tcp)[0]
+      match.set_tcp_src( tcp_pkt.src_port )
+      match.set_tcp_dst( tcp_pkt.dst_port )
+    elif ip.proto == 0x11:
+      udp_pkt = pkt.get_protocols(udp.udp)[0]
+      match.set_udp_src( udp_pkt.src_port )
+      match.set_udp_dst( udp_pkt.dst_port )
+
     # The flow will naturally age out after 10 minutes of idleness.  That way we can pick a new path for
     # it if it starts up again.
     OpenflowUtils.add_flow(dp, priority=0, match=match, actions=actions, table_id=2, idle_timeout=600)
@@ -88,10 +88,7 @@ class CrossCampusHandler():
       str(ip.dst) +":" + str(tcp_pkt.dst_port)
     )
 
-    # Send packet to the router, and make it do the same actions the rule would've done.
-    out = parser.OFPPacketOut(datapath=dp, buffer_id=msg.buffer_id,
-      in_port=in_port, actions=actions, data=msg.data)
-    dp.send_msg(out)
+    return actions
 
   def add_incoming_dynamic_flow(self, msg):
     dp = msg.datapath
@@ -102,33 +99,25 @@ class CrossCampusHandler():
 
     pkt = packet.Packet(msg.data)
     eth = pkt.get_protocols(ethernet.ethernet)[0]
-
-    # This shouldn't happen because a router doesn't send non-IP packets to hosts.
-    if eth.ethertype != 0x800:
-      self.logger.error("Non IP packet sent from a router.  Ignored.")
-      return
-
     ip = pkt.get_protocols(ipv4.ipv4)[0]
 
-    # TODO: Handle UDP as well
-    if ip.proto != 0x6:
-      self.logger.error("Non TCP packet ignored for now")
-      return
+    # See discussion about non-TCP and non-UDP traffic above.  Note that this side is different in that
+    # we don't necessarily know the port, so just handle like an L2 switch    
+    if ip.proto != 0x6 and ip.proto != 0x11:
+      output_p = self.nib.port_for_mac(eth.dst)
+      if output_p == None:
+        output_p = ofproto.OFPP_FLOOD
+      return [ parser.OFPActionOutput(output_p) ]
 
     src_ip = ip.src
     dst_ip = ip.dst
 
-    # Convert dst_ip to its real form.  First find out what the egress switch actually is:
-    self.logger.info("Packet for "+str(src_ip) +" -> "+ str(dst_ip))
-
-    # I'm getting these issues if the rewrites are not properly happening.
+    # This could happen if the other side of the network is not properly rewriting the destination.
     if NetUtils.ip_in_network(dst_ip, self.nib.actual_net_for(switch)):
-      self.logger.info("This shouldn't be happening.  Packet should be coming from virtual net.  Outputting packet.")
-      out = parser.OFPPacketOut(datapath=dp, buffer_id=msg.buffer_id,
-        in_port=1, actions=[ parser.OFPActionOutput(2) ], data=msg.data)
-      dp.send_msg(out)
-      return
-
+      output_p = self.nib.port_for_mac(dst)
+      if output_p == None:
+        output_p = ofproto.OFPP_FLOOD
+      return [ parser.OFPActionOutput(output_p) ]
 
     for ap in self.nib.alternate_paths():
       if NetUtils.ip_in_network(dst_ip, ap["ithaca"]): 
@@ -141,24 +130,30 @@ class CrossCampusHandler():
     dst_host = NetUtils.host_of_ip(dst_ip, imaginary_net)
     new_dest_ip = NetUtils.ip_for_network(real_net, dst_host)
 
-    # If it's not in the ARP cache, it already has an ARP request on the way so ignore it for now.
+    # If the ip hasn't yet been learned yet, just flood it out to all ports without installing a rule.  The 
+    # recipient should naturally reply, causing learning to occur, and the next packet will install the rule.  
     if not self.nib.learned_ip(new_dest_ip):
-      return
+      return [ parser.OFPActionOutput(ofproto.OFPP_FLOOD) ]
 
     direct_net_port = self.nib.port_for_ip(new_dest_ip)
     new_src_ip = self.nib.translate_alternate_net(src_ip)    
-
-    tcp_pkt = pkt.get_protocols(tcp.tcp)[0]
 
     match = parser.OFPMatch(
       ipv4_src=ip.src
       ,ipv4_dst=ip.dst
       ,eth_type=0x0800
       ,ip_proto=ip.proto  
-      ,tcp_src=tcp_pkt.src_port
-      ,tcp_dst=tcp_pkt.dst_port
       ,vlan_vid=self.nib.vlan_for_switch(switch)
     )
+    if ip.proto == 0x6:
+      tcp_pkt = pkt.get_protocols(tcp.tcp)[0]
+      match.set_tcp_src( tcp_pkt.src_port )
+      match.set_tcp_dst( tcp_pkt.dst_port )
+    elif ip.proto == 0x11:
+      udp_pkt = pkt.get_protocols(udp.udp)[0]
+      match.set_udp_src( udp_pkt.src_port )
+      match.set_udp_dst( udp_pkt.dst_port )
+
     actions = [
       parser.OFPActionSetField(ipv4_src=new_src_ip),
       parser.OFPActionSetField(ipv4_dst=new_dest_ip),
@@ -170,17 +165,22 @@ class CrossCampusHandler():
       str(ip.dst) +":" + str(tcp_pkt.dst_port)
     )
 
-    # Send packet to the host, and make it do the same actions the rule would've done.
-    out = parser.OFPPacketOut(datapath=dp, buffer_id=msg.buffer_id,
-      in_port=in_port, actions=actions, data=msg.data)
-    dp.send_msg(out)
-
+    return actions
 
   def packet_in(self, msg):
     # We're only interested in packets bound or coming from the router
     cookie = msg.cookie
+    actions = None
     if cookie == self.INCOMING_FLOW_RULE:
-      self.add_outgoing_dynamic_flow(msg)
+      actions = self.add_outgoing_dynamic_flow(msg)
     elif cookie == self.OUTGOING_FLOW_RULE:
-      self.add_incoming_dynamic_flow(msg)
+      actions = self.add_incoming_dynamic_flow(msg)
 
+    # If we got some actions, actually apply them to send the packet out
+    if actions != None:
+      dp = msg.datapath
+      parser = dp.ofproto_parser
+      in_port = msg.match['in_port']
+
+      out = parser.OFPPacketOut(datapath=dp, buffer_id=msg.buffer_id, in_port=in_port, actions=actions, data=msg.data)
+      dp.send_msg(out)

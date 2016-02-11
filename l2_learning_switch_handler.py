@@ -96,6 +96,12 @@ class L2LearningSwitchHandler():
         # Learn it for posterity 
         self.nib.learn(switch, self.nib.ENDHOST_PORT, in_port, src, src_ip)
 
+    # Don't send the packet out here if it's coming to/from a router.  
+    # Those will be handled by cross_campus_handler, which may rewrite IP's as well.
+    cookie = msg.cookie
+    if cookie == CrossCampusHandler.INCOMING_FLOW_RULE or cookie == CrossCampusHandler.OUTGOING_FLOW_RULE:
+      return
+
     # Now we have to deal with the Mac destination.  If we know it already, send the packet out that port.
     # Otherwise flood it.  TODO: We should probably check to make sure the switch is right 
     output_p = self.nib.port_for_mac(dst)
@@ -104,4 +110,6 @@ class L2LearningSwitchHandler():
 
     out = parser.OFPPacketOut(datapath=dp, buffer_id=msg.buffer_id,
       in_port=in_port, actions=[ parser.OFPActionOutput(output_p) ], data=msg.data)
+
+
     dp.send_msg(out)

@@ -1,7 +1,7 @@
 # NetworkInformationBase (nib) for Coscin App
 # Craig Riecke, CoSciN Programmer/Nalayst January 2016
 #
-# Some parts of the NIB are familiar, like the ARP cache.  Some are highly specialized
+# Some parts of the NIB are familiar, like the learning table.  Some are highly specialized
 # for this app.  In particular, we assume and Ithaca "side" and NYC "side", with 
 # corresponding switch, controller, and networks on each side.
 
@@ -51,9 +51,6 @@ class NetworkInformationBase():
 
   def save_switch(self, dp):
     self.switches[self.dpid_to_switch(dp.id)] = dp
-
-  def dp(self):
-    return self.dp
 
   def switch_description(self):
     # TODO: Handle more than one switch
@@ -120,6 +117,9 @@ class NetworkInformationBase():
   def alternate_paths(self):
     return self.coscin_config["alternate_paths"]
 
+  def alternate_nets_for_switch(self, switch):
+    return [ ap[switch] for ap in self.alternate_paths() ]
+
   def preferred_net(self, switch):
     return self.alternate_paths()[self.get_preferred_path()][switch]
 
@@ -148,9 +148,8 @@ class NetworkInformationBase():
           found_side = side
           imaginary_net = ap[side]
 
-    if side == None:
-      logging.error("Ooops.  Got an ARP request for a net we don't know about.  Oh well.")
-      return False
+    if found_side == None:
+      return None
     else:
       host = NetUtils.host_of_ip(dst_ip, imaginary_net)
       return NetUtils.ip_for_network(self.actual_net_for(found_side), host)
@@ -167,4 +166,11 @@ class NetworkInformationBase():
       (_, p, ip) = self.hosts[m]
       if ip == src_ip:
         return p
+    return None
+
+  def mac_for_ip(self, src_ip):
+    for m in self.hosts:
+      (_, _, ip) = self.hosts[m]
+      if ip == src_ip:
+        return m
     return None
