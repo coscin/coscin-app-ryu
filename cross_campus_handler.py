@@ -65,27 +65,36 @@ class CrossCampusHandler():
     # No matter what, we always send the packet to the router
     actions.append(parser.OFPActionOutput(self.nib.router_port_for_switch(switch)))
 
-    match = parser.OFPMatch(
-      ipv4_src=ip.src
-      ,ipv4_dst=ip.dst
-      ,eth_type=0x0800
-      ,ip_proto=ip.proto  
-      ,vlan_vid=self.nib.vlan_for_switch(switch)
-    )
     if ip.proto == 0x6:
       tcp_pkt = pkt.get_protocols(tcp.tcp)[0]
-      match.set_tcp_src( tcp_pkt.src_port )
-      match.set_tcp_dst( tcp_pkt.dst_port )
+      match = parser.OFPMatch(
+        ipv4_src=ip.src
+        ,ipv4_dst=ip.dst
+        ,eth_type=0x0800
+        ,ip_proto=ip.proto  
+        ,vlan_vid=self.nib.vlan_for_switch(switch)
+        ,tcp_src = tcp_pkt.src_port
+        ,tcp_dst = tcp_pkt.dst_port
+      )
     elif ip.proto == 0x11:
       udp_pkt = pkt.get_protocols(udp.udp)[0]
-      match.set_udp_src( udp_pkt.src_port )
-      match.set_udp_dst( udp_pkt.dst_port )
+      match = parser.OFPMatch(
+        ipv4_src=ip.src
+        ,ipv4_dst=ip.dst
+        ,eth_type=0x0800
+        ,ip_proto=ip.proto  
+        ,vlan_vid=self.nib.vlan_for_switch(switch)
+        ,udp_src = udp_pkt.src_port
+        ,udp_dst = udp_pkt.dst_port
+      )
+      src_port = udp_pkt.src_port
+      dst_port = udp_pkt.dst_port
 
     # The flow will naturally age out after 10 minutes of idleness.  That way we can pick a new path for
     # it if it starts up again.
     OpenflowUtils.add_flow(dp, priority=0, match=match, actions=actions, table_id=2, idle_timeout=600)
-    self.logger.error("Added outgoing hash rule for "+str(ip.src)+":" + str(tcp_pkt.src_port) +  " -> "+
-      str(ip.dst) +":" + str(tcp_pkt.dst_port)
+    self.logger.error("Added outgoing hash rule for "+str(ip.src)+":" + str(src_port) +  " -> "+
+      str(ip.dst) +":" + str(dst_port)
     )
 
     return actions
@@ -102,7 +111,8 @@ class CrossCampusHandler():
     ip = pkt.get_protocols(ipv4.ipv4)[0]
 
     # See discussion about non-TCP and non-UDP traffic above.  Note that this side is different in that
-    # we don't necessarily know the port, so just handle like an L2 switch    
+    # we don't necessarily know the port, so just handle like an L2 switch.
+    # TODO: We actually do have to rewrite the IP's as well, if only on the output action.      
     if ip.proto != 0x6 and ip.proto != 0x11:
       output_p = self.nib.port_for_mac(eth.dst)
       if output_p == None:
@@ -147,12 +157,16 @@ class CrossCampusHandler():
     )
     if ip.proto == 0x6:
       tcp_pkt = pkt.get_protocols(tcp.tcp)[0]
-      match.set_tcp_src( tcp_pkt.src_port )
-      match.set_tcp_dst( tcp_pkt.dst_port )
+      src_port = tcp_pkt.src_port
+      dst_port = tcp_pkt.dst_port
+      match.set_tcp_src( src_port )
+      match.set_tcp_dst( dst_port )
     elif ip.proto == 0x11:
       udp_pkt = pkt.get_protocols(udp.udp)[0]
-      match.set_udp_src( udp_pkt.src_port )
-      match.set_udp_dst( udp_pkt.dst_port )
+      src_port = udp_pkt.src_port
+      dst_port = udp_pkt.dst_port
+      match.set_udp_src( src_port )
+      match.set_udp_dst( dst_port )
 
     actions = [
       parser.OFPActionSetField(ipv4_src=new_src_ip),
@@ -161,8 +175,8 @@ class CrossCampusHandler():
     ]
     # The flow will naturally age out after 10 minutes of idleness.  That keeps the table clean.
     OpenflowUtils.add_flow(dp, priority=0, match=match, actions=actions, table_id=2, idle_timeout=600)
-    self.logger.error("Added incoming hash rule for "+str(ip.src)+":" + str(tcp_pkt.src_port) +  " -> "+
-      str(ip.dst) +":" + str(tcp_pkt.dst_port)
+    self.logger.error("Added incoming hash rule for "+str(ip.src)+":" + str(src_port) +  " -> "+
+      str(ip.dst) +":" + str(dst_port)
     )
 
     return actions
