@@ -128,10 +128,10 @@ class NetworkInformationBase():
   # Given an IP in the virtual net, the "opposite" net is the network on the other side of 
   # the router that continues the particular preferred path.  
   def opposite_net_for(self, src_ip):
-    for ap in self.nib.alternate_paths():
+    for ap in self.alternate_paths():
       for side in [ "ithaca", "nyc" ]:
         opposite_side = self.opposite_switch(side)
-        if NetUtils.ip_in_network(dst_ip, ap[opposite_side]):
+        if NetUtils.ip_in_network(src_ip, ap[opposite_side]):
           return ap[side] 
     return None
 
