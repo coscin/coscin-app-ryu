@@ -62,24 +62,10 @@ class NetworkInformationBase():
 
   # Update NIB tables and return True if table changes occurred.  Return False otherwise.
   def learn(self, switch, port_type, port, mac, src_ip):
-    #if self.learned(switch, port):
-    #  return False
-
     logging.info("Learning: "+mac+"/"+src_ip+" attached to ( "+switch+", "+str(port)+" )")
     self.hosts[mac] = (switch, port, src_ip)
-    if port_type == self.ENDHOST_PORT:
-      # host_portion = NetUtils.host_of_ip(src_ip, self.coscin_config[switch]["network"])
-      # self.endhosts[switch].append( (host_portion, port, mac, src_ip) )
-      # # We also add entries for this host on all its imaginary paths
-      # for ap in self.coscin_config["alternate_paths"]:
-      #   virtual_ip = NetUtils.ip_for_network(ap[switch], host_portion)
-      #   self.arp_cache[virtual_ip] = (switch, port, mac)
-      pass
-    elif port_type == self.ROUTER_PORT:
+    if port_type == self.ROUTER_PORT:
       self.router_port[switch] = port
-    else:
-      logging.error("Unknown port type: "+str(port_type))
-      return False
     return True
 
   def learned(self, mac):
@@ -139,20 +125,34 @@ class NetworkInformationBase():
   def get_preferred_path(self):
     return self.preferred_path
 
-  def translate_alternate_net(self, dst_ip):
-    # First find out which side (ithaca or nyc) it's on
-    found_side = None
-    for ap in self.alternate_paths():
-      for side in ["ithaca", "nyc"]:
-        if NetUtils.ip_in_network(dst_ip, ap[side]):
-          found_side = side
-          imaginary_net = ap[side]
+  # Given an IP in the virtual net, the "opposite" net is the network on the other side of 
+  # the router that continues the particular preferred path.  
+  def opposite_net_for(self, src_ip):
+    for ap in self.nib.alternate_paths():
+      for side in [ "ithaca", "nyc" ]:
+        opposite_side = self.opposite_switch(side)
+        if NetUtils.ip_in_network(dst_ip, ap[opposite_side]):
+          return ap[side] 
+    return None
 
-    if found_side == None:
+  def coscin_net_for(self, src_ip):
+    for side in [ "ithaca", "nyc" ]:
+      if NetUtils.ip_in_network(src_ip, self.actual_net_for(side)):
+        return self.actual_net_for(side)
+      for ap in self.alternate_paths():
+        if NetUtils.ip_in_network(src_ip, ap[side]):
+          return ap[side]
+    return None
+
+  # Here, we translate real or virtual ip's over another real or virtual net.  Since the
+  # number of nets we care about in CoSciN is pretty small, we just loop through all of them
+  # until we find a match.  We extract the host, then pop it verbatim into the dest net.  Bada bing.
+  def translate_ip(self, src_ip, new_net):
+    current_net = self.coscin_net_for(src_ip)
+    if current_net == None:
       return None
-    else:
-      host = NetUtils.host_of_ip(dst_ip, imaginary_net)
-      return NetUtils.ip_for_network(self.actual_net_for(found_side), host)
+    src_host = NetUtils.host_of_ip(src_ip, current_net)
+    return NetUtils.ip_for_network(new_net, src_host)
 
   def learned_ip(self, src_ip):
     for m in self.hosts:

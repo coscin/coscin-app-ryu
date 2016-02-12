@@ -42,7 +42,7 @@ class ArpHandler():
 
     if p_arp.opcode == arp.ARP_REQUEST:
       # Translate virtual address to a real one
-      real_dest_ip = self.nib.translate_alternate_net(dst_ip) 
+      real_dest_ip = self.nib.translate_ip(dst_ip, self.nib.actual_net_for(switch)) 
 
       if real_dest_ip == None:
         pass

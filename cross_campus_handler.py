@@ -15,6 +15,8 @@ class CrossCampusHandler():
     # in l2_learning_switch_handler.  
     pass
 
+  # The rules that we write for incoming and outgoing packets looks a lot alike - just the actions
+  # are different.  SO we factor them out here.  
   def write_table_2_rule(self, switch, dp, ip, pkt, actions, direction ):
     parser = dp.ofproto_parser
     if ip.proto == 0x6:
@@ -71,25 +73,15 @@ class CrossCampusHandler():
       # If this is bound for the "virtual" network on the other side, pick the path and rewrite
       # the destination IP's
       if NetUtils.ip_in_network(dst_ip, self.nib.actual_net_for(opposite_switch)):
-        # Get host from src_ip
-        src_pref_net = self.nib.preferred_net(switch)
-        src_host = NetUtils.host_of_ip(src_ip, self.nib.actual_net_for(switch))
-        # Translate this to the preferred path IP
-        new_src = NetUtils.ip_for_network(src_pref_net, src_host)
-        actions.append( parser.OFPActionSetField(ipv4_src=new_src) )
-        # And do the same for the destination
-        dest_host = NetUtils.host_of_ip(dst_ip, self.nib.actual_net_for(opposite_switch))
-        new_dest = NetUtils.ip_for_network(self.nib.preferred_net(opposite_switch), dest_host)
-        actions.append( parser.OFPActionSetField(ipv4_dst=new_dest) )
-      else:
-        for ap in self.nib.alternate_paths():
-          if NetUtils.ip_in_network(dst_ip, ap[opposite_switch]):
-            src_net = ap[switch] 
+        new_src_ip = self.nib.translate_ip(src_ip, self.nib.preferred_net(switch))
+        actions.append( parser.OFPActionSetField( ipv4_src = new_src_ip ) )
 
-        src_host = NetUtils.host_of_ip(src_ip, self.nib.actual_net_for(switch))
-        # Translate this to the direct path IP
-        new_src = NetUtils.ip_for_network(src_net, src_host)        
-        actions.append( parser.OFPActionSetField(ipv4_src=new_src) )
+        new_dst_ip = self.nib.translate_ip(dst_ip, self.nib.preferred_net(opposite_switch))
+        actions.append( parser.OFPActionSetField( ipv4_dst = new_dst_ip ) )
+      else:
+        # It's a direct route, so we only need to renumber the source.  
+        new_src_ip = self.nib.translate_ip(src_ip, self.nib.opposite_net_for(dst_ip))
+        actions.append( parser.OFPActionSetField( ipv4_src = new_src_ip ) )
 
     # No matter what, we always send the packet to the router
     actions.append(parser.OFPActionOutput(self.nib.router_port_for_switch(switch)))
@@ -124,20 +116,13 @@ class CrossCampusHandler():
     # there's nothing crazy like the source using a virtual address here.)
     actions = []
     if not NetUtils.ip_in_network(dst_ip, self.nib.actual_net_for(switch)):
-      # TODO: Move this logic to NIB()
-      for ap in self.nib.alternate_paths():
-        if NetUtils.ip_in_network(dst_ip, ap["ithaca"]): 
-          switch = "ithaca" 
-          imaginary_net = ap["ithaca"]
-        elif NetUtils.ip_in_network(dst_ip, ap["nyc"]):
-          switch = "nyc"
-          imaginary_net = ap["nyc"]
-      real_net = self.nib.actual_net_for(switch)
-      dst_host = NetUtils.host_of_ip(dst_ip, imaginary_net)
-      new_dest_ip = NetUtils.ip_for_network(real_net, dst_host)
-      new_src_ip = self.nib.translate_alternate_net(src_ip)    
+      opposite_switch = self.nib.opposite_switch(switch)
+
+      new_src_ip = self.nib.translate_ip(src_ip, self.nib.actual_net_for(opposite_switch))    
       actions.append( parser.OFPActionSetField(ipv4_src=new_src_ip) )
-      actions.append( parser.OFPActionSetField(ipv4_dst=new_dest_ip) )
+
+      new_dst_ip = self.nib.translate_ip(src_ip, self.nib.actual_net_for(switch))    
+      actions.append( parser.OFPActionSetField(ipv4_dst=new_dst_ip) )
 
     # The destination mac in the packet is guaranteed OK because the router placed it there as a result
     # of its ARP cache.  However, that doesn't necessarily mean we have learned that port yet, so act like
