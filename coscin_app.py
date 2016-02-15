@@ -40,6 +40,8 @@ class CoscinApp(app_manager.RyuApp):
 
     nib.load_config(os.getenv("COSCIN_CFG_FILE", "coscin_gates_testbed.json"))
 
+    self.master = False
+
     # Register all handlers
     self.l2_learning_switch_handler = L2LearningSwitchHandler(nib, self.logger)
     self.cross_campus_handler = CrossCampusHandler(nib, self.logger)
@@ -49,19 +51,51 @@ class CoscinApp(app_manager.RyuApp):
   @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
   def handle_switch_up(self, ev):
     dp = ev.msg.datapath
+    ofp_parser = dp.ofproto_parser
+    ofp = dp.ofproto
     self.nib.save_switch(dp)
     self.logger.info("Connected to Switch: "+self.nib.switch_description(dp))
 
-    OpenflowUtils.delete_all_rules(dp)
-    OpenflowUtils.send_table_miss_config(dp)
+    # Send a Role request to make this controller the master controller.  If there's already a master
+    # controller, the switch won't honor the request.  I think.
+    req = ofp_parser.OFPRoleRequest(dp, ofp.OFPCR_ROLE_MASTER, 0)
+    dp.send_msg(req)
 
-    self.l2_learning_switch_handler.install_fixed_rules(dp)
-    self.cross_campus_handler.install_fixed_rules(dp)
-    self.arp_handler.install_fixed_rules(dp)
-    self.path_selection_handler.install_fixed_rules(dp)
+  @set_ev_cls(ofp_event.EventOFPRoleReply, MAIN_DISPATCHER)
+  def role_reply_handler(self, ev):
+    msg = ev.msg
+    dp = msg.datapath
+    ofp = dp.ofproto
+
+    if msg.role == ofp.OFPCR_ROLE_NOCHANGE:
+        role = 'NOCHANGE'
+    elif msg.role == ofp.OFPCR_ROLE_EQUAL:
+        role = 'EQUAL'
+    elif msg.role == ofp.OFPCR_ROLE_MASTER:
+        role = 'MASTER'
+    elif msg.role == ofp.OFPCR_ROLE_SLAVE:
+        role = 'SLAVE'
+    else:
+        role = 'unknown'
+
+    self.logger.debug('OFPRoleReply received: role=%s generation_id=%d',
+      role, msg.generation_id)
+
+    if role == "MASTER":
+      OpenflowUtils.delete_all_rules(dp)
+      OpenflowUtils.send_table_miss_config(dp)
+
+      self.l2_learning_switch_handler.install_fixed_rules(dp)
+      self.cross_campus_handler.install_fixed_rules(dp)
+      self.arp_handler.install_fixed_rules(dp)
+      self.path_selection_handler.install_fixed_rules(dp)
+      self.master = True
 
   @set_ev_cls(ofp_event.EventOFPPacketIn, MAIN_DISPATCHER)
   def handle_packet_in(self, ev):
+    if not self.master:
+      return
+
     msg = ev.msg
     self.l2_learning_switch_handler.packet_in(msg)
     self.cross_campus_handler.packet_in(msg)
