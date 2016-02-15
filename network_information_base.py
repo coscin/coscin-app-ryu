@@ -29,6 +29,15 @@ class NetworkInformationBase():
   # index of alternate_path being used now
   preferred_path = 0
 
+  # Configuration
+
+  def load_config(self, config_file):
+    f = open(config_file, "r")
+    self.coscin_config = json.load(f)
+    f.close()
+
+  # Switches
+
   def dpid_to_switch(self, dpid):
     for sw in ["ithaca", "nyc"]:
       if dpid == self.coscin_config[sw]["dpid"]:
@@ -41,26 +50,34 @@ class NetworkInformationBase():
     else:
       return 0
 
-  def load_config(self, config_file):
-    f = open(config_file, "r")
-    self.coscin_config = json.load(f)
-    f.close()
+  def save_switch(self, dp):
+    self.switches[self.dpid_to_switch(dp.id)] = dp
+
+  def switch_description(self, dp):
+    return self.switch_for_dp(dp)
+
+  def switches_present(self):
+    return self.switches.keys()
+
+  def dp_for_switch(self, switch):
+    return self.switches[switch]
+
+  def switch_for_dp(self, dp):
+    return self.dpid_to_switch(dp.id)
+
+  def opposite_switch(self, switch):
+    return "nyc" if (switch=="ithaca") else "ithaca"
+
+  # Switch attributes
 
   def actual_net_for(self, switch):
     return self.coscin_config[switch]["network"]
 
-  def save_switch(self, dp):
-    self.switches[self.dpid_to_switch(dp.id)] = dp
-
-  def switch_description(self):
-    # TODO: Handle more than one switch
-    return self.switches.keys()[0] 
-
-  # TODO: Make this configurable
   def vlan_for_switch(self, switch):
-    return 1
+    return self.coscin_config[switch]["vlan"]
 
-  # Update NIB tables and return True if table changes occurred.  Return False otherwise.
+  # Switch, Port, Mac, IP Lookup
+
   def learn(self, switch, port_type, port, mac, src_ip):
     logging.info("Learning: "+mac+"/"+src_ip+" attached to ( "+switch+", "+str(port)+" )")
     self.hosts[mac] = (switch, port, src_ip)
@@ -79,15 +96,29 @@ class NetworkInformationBase():
       return self.hosts[src_mac][1]
     else:
       return None
+
+  def learned_ip(self, src_ip):
+    for m in self.hosts:
+      (_, _, ip) = self.hosts[m]
+      if ip == src_ip:
+        return True
+    return False
+
+  def port_for_ip(self, src_ip):
+    for m in self.hosts:
+      (_, p, ip) = self.hosts[m]
+      if ip == src_ip:
+        return p
+    return None
+
+  def mac_for_ip(self, src_ip):
+    for m in self.hosts:
+      (_, _, ip) = self.hosts[m]
+      if ip == src_ip:
+        return m
+    return None
       
-  def switches_present(self):
-    return self.switches.keys()
-
-  def dp_for_switch(self, switch):
-    return self.switches[switch]
-
-  def switch_for_dp(self, dp):
-    return self.dpid_to_switch(dp.id)
+  # Router port information
 
   def router_mac_for_switch(self, switch):
     rp = self.router_port[switch]
@@ -100,6 +131,8 @@ class NetworkInformationBase():
   def router_port_for_switch(self, switch):
     return self.router_port[switch]
 
+  # Coscin path and network information
+
   def alternate_paths(self):
     return self.coscin_config["alternate_paths"]
 
@@ -108,9 +141,6 @@ class NetworkInformationBase():
 
   def preferred_net(self, switch):
     return self.alternate_paths()[self.get_preferred_path()][switch]
-
-  def opposite_switch(self, switch):
-    return "nyc" if (switch=="ithaca") else "ithaca"
 
   def ip_in_coscin_network(self, dst_ip):
     if NetUtils.ip_in_network(dst_ip, self.actual_net_for("ithaca")):
@@ -124,6 +154,9 @@ class NetworkInformationBase():
 
   def get_preferred_path(self):
     return self.preferred_path
+
+  def set_preferred_path(self, pp):
+    self.preferred_path = pp
 
   # Given an IP in the virtual net, the "opposite" net is the network on the other side of 
   # the router that continues the particular preferred path.  
@@ -154,23 +187,3 @@ class NetworkInformationBase():
     src_host = NetUtils.host_of_ip(src_ip, current_net)
     return NetUtils.ip_for_network(new_net, src_host)
 
-  def learned_ip(self, src_ip):
-    for m in self.hosts:
-      (_, _, ip) = self.hosts[m]
-      if ip == src_ip:
-        return True
-    return False
-
-  def port_for_ip(self, src_ip):
-    for m in self.hosts:
-      (_, p, ip) = self.hosts[m]
-      if ip == src_ip:
-        return p
-    return None
-
-  def mac_for_ip(self, src_ip):
-    for m in self.hosts:
-      (_, _, ip) = self.hosts[m]
-      if ip == src_ip:
-        return m
-    return None

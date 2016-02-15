@@ -1,4 +1,6 @@
-# Universal utilities for Coscin App
+# openflow_utils
+# Static functions for Openflow-y kinds of things.   This basically encapsulates all the standard 
+# defaults for common operations.  
 
 import logging
 from ryu.lib.packet import packet, ethernet, arp

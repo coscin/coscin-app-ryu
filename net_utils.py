@@ -1,3 +1,6 @@
+# net_utils
+# static utliity functions for network-y calculations like subnet masking.
+
 import array
 from ryu.lib.packet import packet
 
@@ -25,7 +28,7 @@ class NetUtils():
     (net, mask) = net_mask_combo.split("/")
     return (net, int(mask))
 
-  # Given a network and a host, construct an IP, real or imagined.  A lot of the path mapping
+  # Given a network and a host, construct an IP.  A lot of the path mapping
   # is done this way, so host x.100 on the real network gets mapped to the bogus addresses 
   # x1.100, x2.100 and x3.100 for each of the paths
   @staticmethod
@@ -49,10 +52,9 @@ class NetUtils():
     # A mask of all ones is just 2^(n+1) -1.  The host mask is just the inverse of the net mask
     all_ones = pow(2, mask+1) -1
     host_int = ~ (all_ones << (32-mask))
-    # TODO: Maybe check the net portion of src_ip against net_int to make sure it's from the
-    # same net.  
     return host_int & int(src_ip_int)
 
+  # Given a network and an IP, is the IP in the network?
   @staticmethod
   def ip_in_network(src_ip, net):
     (net, mask) = NetUtils.net_mask(net)

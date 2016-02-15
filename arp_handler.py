@@ -1,3 +1,8 @@
+# arp_handler
+# Reply to ARP requests for imaginary networks.  These requests get sent by the routers.  For the example
+# outlined in cross_campus_handler, the router might send an ARP request for 192.168.157.200.  This 
+# handler picks it up and sends a reply with the Mac for 57.200 (if it's known) 
+
 from ryu.lib.packet import packet, ethernet, ether_types, arp
 from openflow_utils import OpenflowUtils
 from net_utils import NetUtils
@@ -9,20 +14,19 @@ class ArpHandler():
     self.nib = nib
     self.logger = logger
 
-  def install_fixed_rules(self):
+  def install_fixed_rules(self, dp):
     # We grab all ARP requests and replies.  You can't match with any more granularity 
     # than that on HP's custom pipleine, unfortunately.  
-    for switch in self.nib.switches_present():
-      dp = self.nib.dp_for_switch(switch)
-      ofproto = dp.ofproto
-      parser = dp.ofproto_parser
+    ofproto = dp.ofproto
+    parser = dp.ofproto_parser
 
-      match_arp = parser.OFPMatch( eth_type=ether_types.ETH_TYPE_ARP )
-      actions = [ parser.OFPActionOutput(ofproto.OFPP_CONTROLLER) ]
-      OpenflowUtils.add_flow(dp, priority=50, match=match_arp, actions=actions, table_id=3, cookie=self.ARP_RULE)
+    match_arp = parser.OFPMatch( eth_type=ether_types.ETH_TYPE_ARP )
+    actions = [ parser.OFPActionOutput(ofproto.OFPP_CONTROLLER) ]
+    OpenflowUtils.add_flow(dp, priority=50, match=match_arp, actions=actions, table_id=3, cookie=self.ARP_RULE)
 
   def packet_in(self, msg):
     cookie = msg.cookie
+    # Ignore all packets that came here by other rules than the ARP rule
     if cookie != self.ARP_RULE:
       return
 
