@@ -13,7 +13,7 @@
 #   +         +  +         +  + DST_PORT+   +         +  
 #   +---------+  +---------+  +---------+   +---------+
 
-import logging, os
+import logging, os, socket
 from ryu import utils
 from ryu.base import app_manager
 from ryu.controller import ofp_event
@@ -53,12 +53,12 @@ class CoscinApp(app_manager.RyuApp):
     dp = ev.msg.datapath
     ofp_parser = dp.ofproto_parser
     ofp = dp.ofproto
-    self.nib.save_switch(dp)
+    switch = self.nib.save_switch(dp)
     self.logger.info("Connected to Switch: "+self.nib.switch_description(dp))
 
-    # Send a Role request to make this controller the master controller.  If there's already a master
-    # controller, the switch won't honor the request.  I think.
-    req = ofp_parser.OFPRoleRequest(dp, ofp.OFPCR_ROLE_MASTER, 0)
+    hostname = socket.gethostname()
+    role = ofp.OFPCR_ROLE_MASTER if hostname == self.nib.primary_controller_hostname(switch) else ofp.OFPCR_ROLE_SLAVE
+    req = ofp_parser.OFPRoleRequest(dp, role, 0)
     dp.send_msg(req)
 
   @set_ev_cls(ofp_event.EventOFPRoleReply, MAIN_DISPATCHER)

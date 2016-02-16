@@ -51,7 +51,9 @@ class NetworkInformationBase():
       return 0
 
   def save_switch(self, dp):
+    switch = self.dpid_to_switch(dp.id)
     self.switches[self.dpid_to_switch(dp.id)] = dp
+    return switch
 
   def switch_description(self, dp):
     return self.switch_for_dp(dp)
@@ -75,6 +77,9 @@ class NetworkInformationBase():
 
   def vlan_for_switch(self, switch):
     return self.coscin_config[switch]["vlan"]
+
+  def primary_controller_hostname(self, switch):
+    return self.coscin_config[switch]["controller_hosts"][0]
 
   # Switch, Port, Mac, IP Lookup
 
