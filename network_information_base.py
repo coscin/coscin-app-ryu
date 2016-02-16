@@ -70,6 +70,12 @@ class NetworkInformationBase():
   def opposite_switch(self, switch):
     return "nyc" if (switch=="ithaca") else "ithaca"
 
+  def switch_for_controller_host(self, host):
+    for side in ["ithaca", "nyc"]:
+      if host in self.coscin_config[side]["controller_hosts"]:
+        return side 
+    return None
+
   # Switch attributes
 
   def actual_net_for(self, switch):
@@ -78,8 +84,11 @@ class NetworkInformationBase():
   def vlan_for_switch(self, switch):
     return self.coscin_config[switch]["vlan"]
 
-  def primary_controller_hostname(self, switch):
+  def primary_controller_for_switch(self, switch):
     return self.coscin_config[switch]["controller_hosts"][0]
+
+  def zookeeper_for_switch(self, switch):
+    return self.coscin_config[switch]["zookeeper"]
 
   # Switch, Port, Mac, IP Lookup
 

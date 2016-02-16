@@ -26,6 +26,7 @@ from l2_learning_switch_handler import L2LearningSwitchHandler
 from cross_campus_handler import CrossCampusHandler
 from arp_handler import ArpHandler
 from path_selection_handler import PathSelectionHandler
+from multiple_controllers import MultipleControllers
 
 class CoscinApp(app_manager.RyuApp):
   OFP_VERSIONS = [ofproto_v1_3.OFP_VERSION]
@@ -40,7 +41,12 @@ class CoscinApp(app_manager.RyuApp):
 
     nib.load_config(os.getenv("COSCIN_CFG_FILE", "coscin_gates_testbed.json"))
 
-    self.master = False
+    hostname = socket.gethostname()
+    on_switch = self.nib.switch_for_controller_host(hostname)
+    primary_controller_host = self.nib.primary_controller_for_switch(on_switch)
+    zookeeper_for_switch = self.nib.zookeeper_for_switch(on_switch)
+    role = "master" if hostname == primary_controller_host else "slave"
+    self.mc = MultipleControllers(role, zookeeper_for_switch)
 
     # Register all handlers
     self.l2_learning_switch_handler = L2LearningSwitchHandler(nib, self.logger)
@@ -56,46 +62,10 @@ class CoscinApp(app_manager.RyuApp):
     switch = self.nib.save_switch(dp)
     self.logger.info("Connected to Switch: "+self.nib.switch_description(dp))
 
-    hostname = socket.gethostname()
-    role = ofp.OFPCR_ROLE_MASTER if hostname == self.nib.primary_controller_hostname(switch) else ofp.OFPCR_ROLE_SLAVE
-    req = ofp_parser.OFPRoleRequest(dp, role, 0)
-    dp.send_msg(req)
-
-  @set_ev_cls(ofp_event.EventOFPRoleReply, MAIN_DISPATCHER)
-  def role_reply_handler(self, ev):
-    msg = ev.msg
-    dp = msg.datapath
-    ofp = dp.ofproto
-
-    if msg.role == ofp.OFPCR_ROLE_NOCHANGE:
-        role = 'NOCHANGE'
-    elif msg.role == ofp.OFPCR_ROLE_EQUAL:
-        role = 'EQUAL'
-    elif msg.role == ofp.OFPCR_ROLE_MASTER:
-        role = 'MASTER'
-    elif msg.role == ofp.OFPCR_ROLE_SLAVE:
-        role = 'SLAVE'
-    else:
-        role = 'unknown'
-
-    self.logger.debug('OFPRoleReply received: role=%s generation_id=%d',
-      role, msg.generation_id)
-
-    if role == "MASTER":
-      OpenflowUtils.delete_all_rules(dp)
-      OpenflowUtils.send_table_miss_config(dp)
-
-      self.l2_learning_switch_handler.install_fixed_rules(dp)
-      self.cross_campus_handler.install_fixed_rules(dp)
-      self.arp_handler.install_fixed_rules(dp)
-      self.path_selection_handler.install_fixed_rules(dp)
-      self.master = True
+    self.mc.handle_datapath(ev)
 
   @set_ev_cls(ofp_event.EventOFPPacketIn, MAIN_DISPATCHER)
   def handle_packet_in(self, ev):
-    if not self.master:
-      return
-
     msg = ev.msg
     self.l2_learning_switch_handler.packet_in(msg)
     self.cross_campus_handler.packet_in(msg)

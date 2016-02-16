@@ -3,13 +3,15 @@
     "dpid": 378372418415616,
     "network": "192.168.56.0/24",
     "vlan": 1,
-    "controller_hosts": ["coscin-ctrl-ithaca", "coscin-ctrl-ithaca2"]
+    "controller_hosts": ["coscin-ctrl-ithaca", "coscin-ctrl-ithaca2"],
+    "zookeeper": "coscin-ctrl-ithaca:2181"
   },
   "nyc": {
     "dpid": 378372418751232,
     "network": "192.168.57.0/24",
     "vlan": 1,
-    "controller_hosts": ["coscin-ctrl-nyc"]
+    "controller_hosts": ["coscin-ctrl-nyc"],
+    "zookeeper": "coscin-ctrl-nyc:2181"
   },
   "alternate_paths": [
     { "ithaca": "192.168.156.0/24", "nyc": "192.168.157.0/24" },
