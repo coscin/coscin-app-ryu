@@ -17,7 +17,7 @@ import logging, os, socket
 from ryu import utils
 from ryu.base import app_manager
 from ryu.controller import ofp_event
-from ryu.controller.handler import MAIN_DISPATCHER, CONFIG_DISPATCHER
+from ryu.controller.handler import MAIN_DISPATCHER, CONFIG_DISPATCHER, HANDSHAKE_DISPATCHER
 from ryu.controller.handler import set_ev_cls
 from ryu.ofproto import ofproto_v1_3
 from openflow_utils import OpenflowUtils
@@ -43,10 +43,8 @@ class CoscinApp(app_manager.RyuApp):
 
     hostname = socket.gethostname()
     on_switch = self.nib.switch_for_controller_host(hostname)
-    primary_controller_host = self.nib.primary_controller_for_switch(on_switch)
     zookeeper_for_switch = self.nib.zookeeper_for_switch(on_switch)
-    role = "master" if hostname == primary_controller_host else "slave"
-    self.mc = MultipleControllers(role, zookeeper_for_switch)
+    self.mc = MultipleControllers(self.logger, hostname, zookeeper_for_switch)
 
     # Register all handlers
     self.l2_learning_switch_handler = L2LearningSwitchHandler(nib, self.logger)
@@ -63,6 +61,10 @@ class CoscinApp(app_manager.RyuApp):
     self.logger.info("Connected to Switch: "+self.nib.switch_description(dp))
 
     self.mc.handle_datapath(ev)
+    self.l2_learning_switch_handler.install_fixed_rules(dp)
+    self.cross_campus_handler.install_fixed_rules(dp)
+    self.arp_handler.install_fixed_rules(dp)
+    self.path_selection_handler.install_fixed_rules(dp)
 
   @set_ev_cls(ofp_event.EventOFPPacketIn, MAIN_DISPATCHER)
   def handle_packet_in(self, ev):
@@ -79,3 +81,8 @@ class CoscinApp(app_manager.RyuApp):
       'message=%s',
        msg.type, msg.code, utils.hex_array(msg.data)
      )
+
+  @set_ev_cls(ofp_event.EventOFPEchoRequest, [HANDSHAKE_DISPATCHER, CONFIG_DISPATCHER, MAIN_DISPATCHER])
+  def echo_request_handler(self, ev):
+    # TODO: record heartbeat so watchdog process knows whether it's communicating with switch
+    pass
