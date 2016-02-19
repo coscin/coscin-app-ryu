@@ -60,7 +60,12 @@ class CoscinApp(app_manager.RyuApp):
     switch = self.nib.save_switch(dp)
     self.logger.info("Connected to Switch: "+self.nib.switch_description(dp))
 
+    # This will block until the controller actually becomes a primary
     self.mc.handle_datapath(ev)
+
+    OpenflowUtils.delete_all_rules(dp)
+    OpenflowUtils.send_table_miss_config(dp)
+
     self.l2_learning_switch_handler.install_fixed_rules(dp)
     self.cross_campus_handler.install_fixed_rules(dp)
     self.arp_handler.install_fixed_rules(dp)
