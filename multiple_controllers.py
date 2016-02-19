@@ -23,6 +23,7 @@ class MultipleControllers(object):
     self.zk = kazoo.client.KazooClient(hosts = zhost, timeout = DEFAULT_TIMEOUT)
     self.zk.start()
     self.zk.add_listener(my_listener)
+    self.lock = None
 
   def role_request(self, dp, role):
     ofp_parser = dp.ofproto_parser
@@ -42,3 +43,10 @@ class MultipleControllers(object):
 
     self.logger.info("Promoted to master controller")
     self.role_request(self.dp, ofproto_v1_3.OFPCR_ROLE_MASTER)
+
+  def release_lock(self):
+    self.lock.release()
+    self.lock = None
+
+  def holds_lock(self):
+    return self.lock != None
