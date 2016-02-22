@@ -18,6 +18,14 @@ class L2LearningSwitchHandler():
     self.nib = nib
     self.logger = logger
 
+  def arp_for_router(self, dp, switch):
+    # Learning the router port is really important, so we send an ARP packet to poke it into submission
+    # Note that host .2 may not or may not be a real host, but the reply will always come back to the switch anyway.
+    target_ip_net = self.nib.actual_net_for(switch)
+    src_ip = NetUtils.ip_for_network(target_ip_net, 2)
+    dst_ip = NetUtils.ip_for_network(target_ip_net, 1)  # The IP of the router interface will always be a .1
+    OpenflowUtils.send_arp_request(dp, src_ip, dst_ip)  
+
   def install_fixed_rules(self, dp):
     # Table 0, the Source Mac table, has table miss=Goto Controller so it can learn 
     # newly-connected macs
@@ -34,12 +42,7 @@ class L2LearningSwitchHandler():
     actions = [ parser.OFPActionOutput(ofproto.OFPP_FLOOD) ]
     OpenflowUtils.add_flow(dp, priority=0, match=match_all, actions=actions, table_id=1)
 
-    # Learning the router port is really important, so we send an ARP packet to poke it into submission
-    # Note that host .2 may not or may not be a real host, but the reply will always come back to the switch anyway.
-    target_ip_net = self.nib.actual_net_for(switch)
-    src_ip = NetUtils.ip_for_network(target_ip_net, 2)
-    dst_ip = NetUtils.ip_for_network(target_ip_net, 1)  # The IP of the router interface will always be a .1
-    OpenflowUtils.send_arp_request(dp, src_ip, dst_ip)  
+    self.arp_for_router(dp, switch)
 
   def packet_in(self, msg):
     dp = msg.datapath
@@ -89,7 +92,12 @@ class L2LearningSwitchHandler():
         # Outgoing Packet Capture (e.g. Coscin Ith->NYC on the NYC side), Cookie OUTGOING_FLOW_RULE
         match = parser.OFPMatch( eth_src = src, eth_type=ether_types.ETH_TYPE_IP )
         OpenflowUtils.add_flow(dp, priority=65534, match=match, actions=actions, 
-          table_id=3, cookie=CrossCampusHandler.OUTGOING_FLOW_RULE)          
+          table_id=3, cookie=CrossCampusHandler.OUTGOING_FLOW_RULE)  
+
+      # We don't learn any hosts until we've learned the router.  Otherwise IP packets from the other
+      # side of the switch might be learned as the router port. 
+      elif self.nib.router_port_for_switch(switch) == None:
+        self.arp_for_router(dp, switch)
 
       else:
         # The packet is from a host, not a router.  A new packet carries information on the mac address, 

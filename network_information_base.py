@@ -14,7 +14,7 @@ class NetworkInformationBase():
   switches = {}
 
   # Router ports are tallied on the approriate side
-  router_port = { "ithaca": 0, "nyc": 0 }
+  router_port = { "ithaca": None, "nyc": None }
 
   # Ports are segregated into ROUTER ports and ENDHOST ports
   ROUTER_PORT = 1
@@ -40,7 +40,7 @@ class NetworkInformationBase():
 
   def clear(self):
     self.switches = {}
-    self.router_port = { "ithaca": 0, "nyc": 0 }
+    self.router_port = { "ithaca": None, "nyc": None }
     self.hosts = {}
     self.preferred_path = 0
 
@@ -141,14 +141,6 @@ class NetworkInformationBase():
     return None
       
   # Router port information
-
-  def router_mac_for_switch(self, switch):
-    rp = self.router_port[switch]
-    for m in self.hosts:
-      (sw, p, _) = self.hosts[m]
-      if sw == switch and p == rp:
-        return m
-    return "None"
 
   def router_port_for_switch(self, switch):
     return self.router_port[switch]

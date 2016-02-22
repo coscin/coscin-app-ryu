@@ -33,7 +33,7 @@ class CoscinApp(app_manager.RyuApp):
 
   # This is the maximum number of seconds between probes from the switch.  On HP switches, it's listed
   # as the Backoff interval
-  MAXIMUM_HEARTBEAT_INTERVAL = 60
+  MAXIMUM_HEARTBEAT_INTERVAL = 20
 
   def __init__(self, *args, **kwargs):
     super(CoscinApp, self).__init__(*args, **kwargs)
@@ -69,7 +69,7 @@ class CoscinApp(app_manager.RyuApp):
         # happens, it will become a backup controller.  Note: we don't actually send a role_request to the switch
         # to demote it because ... well, we can't contact the switch!  The promotion to master of the other 
         # controller will ensure the demotion of this one takes place. 
-        if secs_ago > self.MAXIMUM_HEARTBEAT_INTERVAL:
+        if secs_ago > (2.0 * self.MAXIMUM_HEARTBEAT_INTERVAL):
           self.logger.error("Lost connection with the switch.  Demoting to backup controller.")
           self.mc.release_lock()
           self.nib.clear()
@@ -102,6 +102,9 @@ class CoscinApp(app_manager.RyuApp):
 
   @set_ev_cls(ofp_event.EventOFPPacketIn, MAIN_DISPATCHER)
   def handle_packet_in(self, ev):
+    # The HP considers a successful Packet In as a probe, so we reset the heartbeat here as well
+    self.last_heartbeat = time.time()
+
     msg = ev.msg
     self.l2_learning_switch_handler.packet_in(msg)
     self.cross_campus_handler.packet_in(msg)
