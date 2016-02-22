@@ -72,6 +72,7 @@ class CoscinApp(app_manager.RyuApp):
         if secs_ago > self.MAXIMUM_HEARTBEAT_INTERVAL:
           self.logger.error("Lost connection with the switch.  Demoting to backup controller.")
           self.mc.release_lock()
+          self.nib.clear()
       time.sleep(self.MAXIMUM_HEARTBEAT_INTERVAL)
 
   @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)

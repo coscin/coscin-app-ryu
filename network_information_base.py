@@ -36,6 +36,14 @@ class NetworkInformationBase():
     self.coscin_config = json.load(f)
     f.close()
 
+  # Overall operations
+
+  def clear(self):
+    self.switches = {}
+    self.router_port = { "ithaca": 0, "nyc": 0 }
+    self.hosts = {}
+    self.preferred_path = 0
+
   # Switches
 
   def dpid_to_switch(self, dpid):
