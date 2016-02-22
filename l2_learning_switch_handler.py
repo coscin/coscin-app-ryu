@@ -13,6 +13,7 @@ from cross_campus_handler import CrossCampusHandler
 
 class L2LearningSwitchHandler():
   LEARN_NEW_MACS_RULE = 1000
+  LEARNED_MAC_TIMEOUT = 3600  # = 1 Hour
 
   def __init__(self, nib, logger):
     self.nib = nib
@@ -95,7 +96,9 @@ class L2LearningSwitchHandler():
           table_id=3, cookie=CrossCampusHandler.OUTGOING_FLOW_RULE)  
 
       # We don't learn any hosts until we've learned the router.  Otherwise IP packets from the other
-      # side of the switch might be learned as the router port. 
+      # side of the switch might be learned as the router port.  Send another request just in case it missed
+      # the first one.  
+
       elif self.nib.router_port_for_switch(switch) == None:
         self.arp_for_router(dp, switch)
 
@@ -126,3 +129,32 @@ class L2LearningSwitchHandler():
     out = parser.OFPPacketOut(datapath=dp, buffer_id=msg.buffer_id,
       in_port=in_port, actions=[ parser.OFPActionOutput(output_p) ], data=msg.data)
     dp.send_msg(out)
+
+  def port_status(self, msg):
+    port = msg.desc.port_no
+    dp = msg.datapath
+    switch = self.nib.switch_for_dp(dp)
+    parser = dp.ofproto_parser
+    ofp = dp.ofproto
+
+    # We ignore any status messages coming from the Router port because they cause too much 
+    # catastrophe to unlearn.  If you ever change the router port, you must restart this app.  
+    if port != self.nib.router_port_for_switch(switch):
+      # We actually don't care what modification has happened to the port - could be LinkUp, could
+      # be LinkDown, whatever.  We unlearn the port, remove any table 0 or 1 rules, and let it relearn
+      self.logger.info("Port "+str(port)+" changed status.  Removing L2 rules, if any.")
+      # First lookup the mac
+      mac = self.nib.mac_for_port(switch, port)
+      if mac != None:
+        # Remove source and destination rules with that Mac
+        match_mac_src = parser.OFPMatch( vlan_vid = self.nib.vlan_for_switch(switch), eth_src = mac )
+        match_mac_dst = parser.OFPMatch( vlan_vid = self.nib.vlan_for_switch(switch), eth_dst = mac )
+        m = parser.OFPFlowMod(dp, 0, 0, 0, ofp.OFPFC_DELETE, 0, 0, 1,
+          ofp.OFPCML_NO_BUFFER, ofp.OFPP_ANY, ofp.OFPG_ANY, 0, match_mac_src, instructions=[])
+        dp.send_msg(m)        
+        m = parser.OFPFlowMod(dp, 0, 0, 1, ofp.OFPFC_DELETE, 0, 0, 1,
+          ofp.OFPCML_NO_BUFFER, ofp.OFPP_ANY, ofp.OFPG_ANY, 0, match_mac_dst, instructions=[])
+        dp.send_msg(m)        
+
+        # And unlearn it
+        self.nib.unlearn(switch, port)

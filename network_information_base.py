@@ -107,6 +107,11 @@ class NetworkInformationBase():
       self.router_port[switch] = port
     return True
 
+  def unlearn(self, switch, port):
+    m = self.mac_for_port(switch, port)
+    if m != None:
+      del self.hosts[m]
+
   def learned(self, mac):
     return mac in self.hosts
 
@@ -139,7 +144,14 @@ class NetworkInformationBase():
       if ip == src_ip:
         return m
     return None
-      
+
+  def mac_for_port(self, switch, port):
+    for m in self.hosts:
+      (sw, p, _) = self.hosts[m]
+      if sw == switch and p == port:
+        return m
+    return None
+
   # Router port information
 
   def router_port_for_switch(self, switch):

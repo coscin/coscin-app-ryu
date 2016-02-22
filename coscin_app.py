@@ -122,3 +122,10 @@ class CoscinApp(app_manager.RyuApp):
   @set_ev_cls(ofp_event.EventOFPEchoRequest, [HANDSHAKE_DISPATCHER, CONFIG_DISPATCHER, MAIN_DISPATCHER])
   def echo_request_handler(self, ev):
     self.last_heartbeat = time.time()
+
+  @set_ev_cls(ofp_event.EventOFPPortStatus, MAIN_DISPATCHER)
+  def port_status_handler(self, ev):
+    msg = ev.msg
+
+    # Currently only the l2 switch is interested in these events.
+    self.l2_learning_switch_handler.port_status(msg)
