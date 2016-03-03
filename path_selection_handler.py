@@ -21,6 +21,10 @@ class PathSelectionHandler():
     pass
 
   def packet_in(self, msg):
+    # If IP rewriting is not on, the Path Selection handler does nothing
+    if not self.nib.ip_rewriting():
+      return
+
     dp = msg.datapath
     switch = self.nib.switch_for_dp(dp)
     ofproto = dp.ofproto

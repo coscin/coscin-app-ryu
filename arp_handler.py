@@ -15,6 +15,7 @@ class ArpHandler():
     self.logger = logger
 
   def install_fixed_rules(self, dp):
+
     # We grab all ARP requests and replies.  You can't match with any more granularity 
     # than that on HP's custom pipleine, unfortunately.  
     ofproto = dp.ofproto

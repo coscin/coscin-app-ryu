@@ -87,7 +87,7 @@ class CrossCampusHandler():
 
     # We only add IP rewriting for Coscin packets.  All non-coscin packets will get a flow rule, but no
     # IP rewriting.  
-    if self.nib.ip_in_coscin_network(dst_ip):
+    if self.nib.ip_rewriting() and self.nib.ip_in_coscin_network(dst_ip):
       opposite_switch = self.nib.opposite_switch(switch)
       # If this is bound for the "virtual" network on the other side, pick the path and rewrite
       # the destination IP's
@@ -135,7 +135,7 @@ class CrossCampusHandler():
     # or the packet is coming from the non-Coscin Internet.  Just leave those IP's alone (we assume 
     # there's nothing crazy like the source using a virtual address here.)
     actions = []
-    if not NetUtils.ip_in_network(dst_ip, self.nib.actual_net_for(switch)):
+    if self.nib.ip_rewriting() and not NetUtils.ip_in_network(dst_ip, self.nib.actual_net_for(switch)):
       opposite_switch = self.nib.opposite_switch(switch)
 
       new_src_ip = self.nib.translate_ip(src_ip, self.nib.actual_net_for(opposite_switch))    

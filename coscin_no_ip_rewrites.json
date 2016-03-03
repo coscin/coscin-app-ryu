@@ -1,0 +1,18 @@
+{
+  "ip_rewrites": false,
+  "ithaca": {
+    "dpid": 378372418415616,
+    "network": "192.168.56.0/24",
+    "vlan": 1,
+    "controller_hosts": ["coscin-ctrl-ithaca", "coscin-ctrl-ithaca2"],
+    "zookeeper": "coscin-ctrl-ithaca:2181"
+  },
+  "nyc": {
+    "dpid": 378372418751232,
+    "network": "192.168.57.0/24",
+    "vlan": 1,
+    "controller_hosts": ["coscin-ctrl-nyc"],
+    "zookeeper": "coscin-ctrl-nyc:2181"
+  },
+  "alternate_paths": []
+}
