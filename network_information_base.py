@@ -160,8 +160,8 @@ class NetworkInformationBase():
   # Coscin path and network information
 
   def ip_rewriting(self):
-    if "ip_rewriting" in self.coscin_config:
-      return self.coscin_config["ip_rewriting"]
+    if "ip_rewrites" in self.coscin_config:
+      return self.coscin_config["ip_rewrites"]
     else:
       return True
 
