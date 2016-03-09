@@ -41,9 +41,9 @@ class PathSelectionHandler():
       self.logger.info("Utilization data: "+str(cpd.util1)+","+str(cpd.util2)+","+str(cpd.util3))
 
       # This is admittedly stupid, but for three paths, who cares?
-      if cpd.util1 < cpd.util2 and cpd.util1 < cpd.util3:
+      if cpd.util1 <= cpd.util2 and cpd.util1 <= cpd.util3:
         selected_path = 1
-      elif cpd.util2 < cpd.util1 and cpd.util2 < cpd.util3:
+      elif cpd.util2 <= cpd.util1 and cpd.util2 <= cpd.util3:
         selected_path = 2
       else:
         selected_path = 3

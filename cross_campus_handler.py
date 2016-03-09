@@ -64,7 +64,7 @@ class CrossCampusHandler():
     # The flow will naturally age out after 10 minutes of idleness.  That way we can pick a new path for
     # it if it starts up again.
     OpenflowUtils.add_flow(dp, priority=0, match=match, actions=actions, table_id=2, idle_timeout=self.IDLE_TIMEOUT)
-    self.logger.error("Added "+direction+" hash rule for "+str(ip.src)+":" + str(src_port) +  " -> "+
+    self.logger.info("Added "+direction+" hash rule for "+str(ip.src)+":" + str(src_port) +  " -> "+
       str(ip.dst) +":" + str(dst_port)
     )
 

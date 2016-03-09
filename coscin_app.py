@@ -114,7 +114,7 @@ class CoscinApp(app_manager.RyuApp):
   @set_ev_cls(ofp_event.EventOFPErrorMsg, [CONFIG_DISPATCHER, MAIN_DISPATCHER])
   def error_msg_handler(self, ev):
     msg = ev.msg
-    self.logger.info('OFPErrorMsg received: type=0x%02x code=0x%02x '
+    self.logger.error('OFPErrorMsg received: type=0x%02x code=0x%02x '
       'message=%s',
        msg.type, msg.code, utils.hex_array(msg.data)
      )
