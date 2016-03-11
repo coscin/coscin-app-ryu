@@ -80,6 +80,7 @@ class CoscinApp(app_manager.RyuApp):
     dp = ev.msg.datapath
     ofp_parser = dp.ofproto_parser
     ofp = dp.ofproto
+    self.logger.info("Switch "+str(dp.id)+" says hello.")
     switch = self.nib.save_switch(dp)
     self.logger.info("Connected to Switch: "+self.nib.switch_description(dp))
 
