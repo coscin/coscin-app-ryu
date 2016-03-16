@@ -13,7 +13,7 @@
 #   +         +  +         +  + DST_PORT+   +         +  
 #   +---------+  +---------+  +---------+   +---------+
 
-import logging, os, socket, time, thread
+import sys, logging, os, socket, time, thread
 from ryu import utils
 from ryu.base import app_manager
 from ryu.controller import ofp_event
@@ -43,10 +43,14 @@ class CoscinApp(app_manager.RyuApp):
     nib = NetworkInformationBase()
     self.nib = nib
 
-    nib.load_config(os.getenv("COSCIN_CFG_FILE", "coscin_gates_testbed.json"))
+    config_file = os.getenv("COSCIN_CFG_FILE", "coscin_gates_testbed.json")
+    nib.load_config(config_file)
 
     hostname = socket.gethostname()
     on_switch = self.nib.switch_for_controller_host(hostname)
+    if on_switch == None:
+      self.logger.error("The hostname "+hostname+" is not present in a controller_hosts attribute for the switch in "+config_file)
+      sys.exit(1)
     zookeeper_for_switch = self.nib.zookeeper_for_switch(on_switch)
     self.mc = MultipleControllers(self.logger, hostname, zookeeper_for_switch)
     self.heartbeat_monitor_started = False
