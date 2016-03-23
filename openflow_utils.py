@@ -24,7 +24,7 @@ class OpenflowUtils():
   def add_flow(dp, priority, match, actions, table_id, idle_timeout=0, cookie=0):
     ofproto = dp.ofproto
     parser = dp.ofproto_parser
-    inst = [parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS, actions)]
+    inst = [parser.OFPInstructionActions(ofproto.OFPIT_WRITE_ACTIONS, actions)]
     OpenflowUtils.add_flow_with_instructions(dp, priority, match, inst, table_id, idle_timeout, cookie)
 
   @staticmethod
