@@ -1,0 +1,21 @@
+{
+  "ithaca": {
+    "dpid": 378372418415104,
+    "network": "132.236.137.96/27",
+    "vlan": 1,
+    "controller_hosts": ["coscin-ctrl-ithaca1", "coscin-ctrl-ithaca2"],
+    "zookeeper": "coscin-ctrl-ithaca1:2181"
+  },
+  "nyc": {
+    "dpid": 378372418241536,
+    "network": "192.168.57.0/24",
+    "vlan": 1,
+    "controller_hosts": ["coscintest-ctrl-nyc1", "coscintest-ctrl-nyc2"],
+    "zookeeper": "coscintest-ctrl-nyc1.systems.cs.cornell.edu:2181"
+  },
+  "alternate_paths": [
+    { "ithaca": "128.84.191.192/27", "nyc": "192.168.157.0/24" },
+    { "ithaca": "132.236.147.192/27", "nyc": "192.168.159.0/24" },
+    { "ithaca": "132.236.147.192/27", "nyc": "192.168.161.0/24" }
+  ]
+}
