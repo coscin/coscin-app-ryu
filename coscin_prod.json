@@ -8,7 +8,7 @@
     "zookeeper": "coscin-ctrl-ithaca1:2181"
   },
   "nyc": {
-    "dpid": 378372418241536,
+    "dpid": 378372418751232,
     "network": "157.139.64.224/27",
     "vlan": 1,
     "controller_hosts": ["coscin-ctrl-nyc1", "coscin-ctrl-nyc2"],
