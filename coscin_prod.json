@@ -1,4 +1,5 @@
 {
+  "ip_rewrites": false,
   "ithaca": {
     "dpid": 378372418415104,
     "network": "132.236.137.96/27",
@@ -11,7 +12,7 @@
     "network": "157.139.64.224/27",
     "vlan": 1,
     "controller_hosts": ["coscin-ctrl-nyc1", "coscin-ctrl-nyc2"],
-    "zookeeper": "coscin-ctrl-nyc1:2181"
+    "zookeeper": "coscin-ctrl-nyc1.pbtech:2181"
   },
   "alternate_paths": [
     { "ithaca": "128.84.191.192/27",  "nyc": "157.139.64.128/27" },
