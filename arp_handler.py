@@ -15,6 +15,10 @@ class ArpHandler():
     self.logger = logger
 
   def install_fixed_rules(self, dp):
+    # We don't install a rule at all if IP rewriting is not turned on.  In this case all ARP requests
+    # and replies to the router will be handled by the router, as they should be.
+    if not self.nib.ip_rewriting():
+      return
 
     # We grab all ARP requests and replies.  You can't match with any more granularity 
     # than that on HP's custom pipleine, unfortunately.  
