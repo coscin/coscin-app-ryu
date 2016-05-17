@@ -15,11 +15,6 @@ class ArpHandler():
     self.logger = logger
 
   def install_fixed_rules(self, dp):
-    # We don't install a rule at all if IP rewriting is not turned on.  In this case all ARP requests
-    # and replies to the router will be handled by the router, as they should be.
-    if not self.nib.ip_rewriting():
-      return
-
     # We grab all ARP requests and replies.  You can't match with any more granularity 
     # than that on HP's custom pipleine, unfortunately.  
     ofproto = dp.ofproto
@@ -30,6 +25,11 @@ class ArpHandler():
     OpenflowUtils.add_flow(dp, priority=50, match=match_arp, actions=actions, table_id=3, cookie=self.ARP_RULE)
 
   def packet_in(self, msg):
+    # If we're not doing any IP rewriting, the ARP requests and replies should have been handled by the
+    # the L2 switch.  
+    if not self.nib.ip_rewriting():
+      return
+
     cookie = msg.cookie
     # Ignore all packets that came here by other rules than the ARP rule
     if cookie != self.ARP_RULE:

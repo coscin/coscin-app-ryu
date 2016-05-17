@@ -111,6 +111,7 @@ class CoscinApp(app_manager.RyuApp):
     self.last_heartbeat = time.time()
 
     msg = ev.msg
+    self.logger.debug("Packet In")
     self.l2_learning_switch_handler.packet_in(msg)
     self.cross_campus_handler.packet_in(msg)
     self.arp_handler.packet_in(msg)
