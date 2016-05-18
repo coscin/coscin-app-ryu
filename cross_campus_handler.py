@@ -97,6 +97,10 @@ class CrossCampusHandler():
 
         new_dst_ip = self.nib.translate_ip(dst_ip, self.nib.preferred_net(opposite_switch))
         actions.append( parser.OFPActionSetField( ipv4_dst = new_dst_ip ) )
+      # If it's trying to communicate with the router on the same side (like ping), just let it
+      # through
+      elif NetUtils.ip_in_network(dst_ip, self.nib.actual_net_for(switch)):
+        pass
       else:
         # If it's a direct route (e.g 56.100 -> 157.200), we only need to renumber the source. 
         # But we have to select the right imaginary net so the path is "straight" 
