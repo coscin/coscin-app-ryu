@@ -52,8 +52,11 @@ class CoscinApp(app_manager.RyuApp):
       self.logger.error("The hostname "+hostname+" is not present in a controller_hosts attribute for the switch in "+config_file)
       sys.exit(1)
     zookeeper_for_switch = self.nib.zookeeper_for_switch(on_switch)
-    self.mc = MultipleControllers(self.logger, hostname, zookeeper_for_switch)
-    self.heartbeat_monitor_started = False
+    if zookeeper_for_switch == "":
+      self.mc = None
+    else:
+      self.mc = MultipleControllers(self.logger, hostname, zookeeper_for_switch)
+      self.heartbeat_monitor_started = False
 
     # Register all handlers
     self.l2_learning_switch_handler = L2LearningSwitchHandler(nib, self.logger)
@@ -88,14 +91,15 @@ class CoscinApp(app_manager.RyuApp):
     switch = self.nib.save_switch(dp)
     self.logger.info("Connected to Switch: "+self.nib.switch_description(dp))
 
-    # This will block until the controller actually becomes a primary
-    self.mc.handle_datapath(ev)
+    if self.mc != None:
+      # This will block until the controller actually becomes a primary
+      self.mc.handle_datapath(ev)
 
-    # Start background thread to monitor switch-to-controller heartbeat
-    self.last_heartbeat = time.time()
-    if not self.heartbeat_monitor_started:
-      thread.start_new_thread( self.heartbeat_monitor, (self, ) )
-    self.heartbeat_monitor_started = True
+      # Start background thread to monitor switch-to-controller heartbeat
+      self.last_heartbeat = time.time()
+      if not self.heartbeat_monitor_started:
+        thread.start_new_thread( self.heartbeat_monitor, (self, ) )
+      self.heartbeat_monitor_started = True
 
     OpenflowUtils.delete_all_rules(dp)
     OpenflowUtils.send_table_miss_config(dp)

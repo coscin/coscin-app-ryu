@@ -126,8 +126,9 @@ class L2LearningSwitchHandler():
     if output_p == None:
       output_p = ofproto.OFPP_FLOOD
 
+    out_data = msg.data if msg.buffer_id == 0xffffffff else None 
     out = parser.OFPPacketOut(datapath=dp, buffer_id=msg.buffer_id,
-      in_port=in_port, actions=[ parser.OFPActionOutput(output_p) ], data=msg.data)
+      in_port=in_port, actions=[ parser.OFPActionOutput(output_p) ], data=out_data)
     dp.send_msg(out)
 
   def port_status(self, msg):
