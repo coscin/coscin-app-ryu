@@ -1,5 +1,5 @@
 {
-  "ip_rewrites": false,
+  "ip_rewrites": true,
   "ithaca": {
     "dpid": 378372418415104,
     "network": "132.236.137.96/27",
