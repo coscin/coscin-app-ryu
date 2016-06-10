@@ -142,10 +142,16 @@ class CrossCampusHandler():
     if self.nib.ip_rewriting() and not NetUtils.ip_in_network(dst_ip, self.nib.actual_net_for(switch)):
       opposite_switch = self.nib.opposite_switch(switch)
 
-      new_src_ip = self.nib.translate_ip(src_ip, self.nib.actual_net_for(opposite_switch))    
+      # Check the source IP.  It should be coming from the same path subnets as the detination.  If it's not,
+      # it's some arbitrary Internet host trying to contact the imaginary net.  Drop the packet like a hot potato.
+      new_src_ip = self.nib.translate_ip(src_ip, self.nib.actual_net_for(opposite_switch))
+      if new_src_ip == None:
+        return []
       actions.append( parser.OFPActionSetField(ipv4_src=new_src_ip) )
 
-      new_dst_ip = self.nib.translate_ip(src_ip, self.nib.actual_net_for(switch))    
+      # The destination IP is always on one of the imaginary nets, or else it wouldn't have been delivered
+      # to this switch at all.
+      new_dst_ip = self.nib.translate_ip(dst_ip, self.nib.actual_net_for(switch))
       actions.append( parser.OFPActionSetField(ipv4_dst=new_dst_ip) )
 
     # The destination mac in the packet is guaranteed OK because the router placed it there as a result
